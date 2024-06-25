@@ -1,0 +1,72 @@
+version: '3'
+services:
+  ereader-app:
+    container_name: app-ereader
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ereader
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app/ereader
+      - /app/ereader/node_modules
+    restart: always
+    ports:
+      - 3000:3000
+    networks:
+      - ereader-network
+  postgres:
+    container_name: postgres-ereader
+    image: postgres:16.3
+    restart: always
+    ports:
+      - 5436:5432
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD", "pg_isready", "-U", "postgres", "-d", "ereader"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ereader-network
+  grafana:
+    container_name: grafana-ereader
+    image: grafana/grafana:latest
+    ports:
+      - 3001:3000
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: ${POSTGRES_HOST}
+      GF_DATABASE_NAME: ${POSTGRES_DB}
+      GF_DATABASE_USER: ${POSTGRES_USER}
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      GF_DATABASEE_SSL_MODE: disable
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    networks:
+      - ereader-network
+volumes:
+  pgdata: {}
+  grafana-storage: {}
+networks:
+  ereader-network:
+    driver: bridge
